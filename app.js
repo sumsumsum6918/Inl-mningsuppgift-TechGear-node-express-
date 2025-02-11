@@ -8,8 +8,13 @@ const PORT = 3000;
 app.use(express.json());
 
 app.use((req, res, next) => {
-  req.db = connectDB();
-  next();
+  try {
+    req.db = connectDB();
+    console.log("Connected to the database!");
+    next();
+  } catch (err) {
+    console.error("Database connection error:", err.message);
+  }
 });
 
 app.get("/products", (req, res, next) => {
@@ -88,7 +93,7 @@ app.use((req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error(err);
   res.status(500).json({ error: err.messages || "Internal Server Error" });
 });
 
