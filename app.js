@@ -29,6 +29,24 @@ app.get("/products", (req, res, next) => {
   }
 });
 
+app.get("/categories-products", (req, res, next) => {
+  try {
+    const productsCat = req.db
+      .prepare(
+        `
+      SELECT products.product_id, products.name AS product_name, categories.name AS category_name
+      FROM products
+      JOIN products_categories ON products.product_id = products_categories.product_id
+      JOIN categories ON categories.category_id = products_categories.category_id
+      `
+      )
+      .all();
+    res.json(productsCat);
+  } catch (error) {
+    next(err);
+  }
+});
+
 app.use((req, res, next) => {
   if (req.db) req.db.close();
   next();
