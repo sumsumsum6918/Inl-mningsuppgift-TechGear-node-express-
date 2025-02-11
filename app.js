@@ -43,7 +43,25 @@ app.get("/categories-products", (req, res, next) => {
       .all();
     res.json(productsCat);
   } catch (error) {
-    next(err);
+    next(error);
+  }
+});
+
+app.get("/reviews", (req, res, next) => {
+  try {
+    const reviews = req.db
+      .prepare(
+        `
+      SELECT products.name AS product_name, customers.name AS customer_name, reviews.rating, reviews.comment
+      FROM reviews
+      JOIN products ON products.product_id = reviews.product_id
+      JOIN customers ON customers.customer_id = reviews.customer_id 
+      `
+      )
+      .all();
+    res.json(reviews);
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -54,7 +72,7 @@ app.use((req, res, next) => {
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json[{ error: err.messages || "Internal Server Error" }];
+  res.status(500).json({ error: err.messages || "Internal Server Error" });
 });
 
 app.listen(PORT, () => {
