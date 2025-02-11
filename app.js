@@ -65,6 +65,23 @@ app.get("/reviews", (req, res, next) => {
   }
 });
 
+app.get("/orders", (req, res, next) => {
+  try {
+    const orders = req.db
+      .prepare(
+        `
+      SELECT order_id, products.name AS product_name, quantity, unit_price AS price
+      FROM orders_products
+      JOIN products ON products.product_id = orders_products.product_id
+      `
+      )
+      .all();
+    res.json(orders);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use((req, res, next) => {
   if (req.db) req.db.close();
   next();
