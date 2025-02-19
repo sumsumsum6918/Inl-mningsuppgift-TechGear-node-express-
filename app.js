@@ -1,4 +1,5 @@
 const express = require("express");
+const Joi = require("joi");
 const db = require("./database");
 
 const app = express();
@@ -6,6 +7,14 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+const productSchema = Joi.object({
+  manufacturer_id: Joi.number().integer().required(),
+  name: Joi.string().required(),
+  description: Joi.string().allow(""),
+  price: Joi.number().required(),
+  stock_quantity: Joi.number().integer().required(),
+});
 
 app.use((req, res, next) => {
   try {
@@ -116,6 +125,31 @@ app.get("/products/:id", (req, res, next) => {
     res.json(product);
   } catch (err) {
     next(err);
+  }
+});
+
+app.post("/products", (req, res, next) => {
+  const { error, value } = productSchema.validate(req.body);
+
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO products (manufacturer_id, name, description, price, stock_quantity)
+      VALUES (?, ?, ?, ?, ?)
+      `);
+
+    const result = stmt.run(
+      value.manufacturer_id,
+      value.name,
+      value.description,
+      value.price,
+      value.stock_quantity
+    );
+
+    res.status(201).json({ id: result.lastInsertRowid, ...value });
+  } catch (err) {
+    next(er);
   }
 });
 
