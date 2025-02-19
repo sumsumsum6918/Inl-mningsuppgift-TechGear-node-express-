@@ -73,6 +73,29 @@ app.get("/products/search", (req, res, next) => {
   }
 });
 
+app.get("/products/category/:categoryId", (req, res, next) => {
+  const { categoryId } = req.params;
+  if (!categoryId)
+    return res.status(400).json({ error: "Category ID is required" });
+
+  try {
+    const products = req.db
+      .prepare(
+        `
+      SELECT categories.name AS category_name,  products.name AS product_name
+      FROM products
+      JOIN products_categories ON products.product_id = products_categories.product_id
+      JOIN categories ON categories.category_id = products_categories.category_id
+      WHERE categories.category_id = ?
+      `
+      )
+      .all(categoryId);
+    res.json(products);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/products/:id", (req, res, next) => {
   const { id } = req.params;
 
@@ -95,24 +118,6 @@ app.get("/products/:id", (req, res, next) => {
     next(err);
   }
 });
-
-/*app.get("/categories-products", (req, res, next) => {
-  try {
-    const productsCat = req.db
-      .prepare(
-        `
-      SELECT products.product_id, products.name AS product_name, categories.name AS category_name
-      FROM products
-      JOIN products_categories ON products.product_id = products_categories.product_id
-      JOIN categories ON categories.category_id = products_categories.category_id
-      `
-      )
-      .all();
-    res.json(productsCat);
-  } catch (error) {
-    next(error);
-  }
-});*/
 
 app.get("/reviews", (req, res, next) => {
   try {
