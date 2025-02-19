@@ -16,6 +16,14 @@ const productSchema = Joi.object({
   stock_quantity: Joi.number().integer().required(),
 });
 
+const updateProductSchema = Joi.object({
+  manufacturer_id: Joi.number().integer().optional(),
+  name: Joi.string().optional(),
+  description: Joi.string().allow("").optional(),
+  price: Joi.number().optional(),
+  stock_quantity: Joi.number().integer().optional(),
+}).min(1);
+
 app.use((req, res, next) => {
   try {
     req.db = db;
@@ -150,6 +158,42 @@ app.post("/products", (req, res, next) => {
     res.status(201).json({ id: result.lastInsertRowid, ...value });
   } catch (err) {
     next(er);
+  }
+});
+
+app.put("/products/:id", (req, res, next) => {
+  const { id } = req.params;
+  const { error, value } = updateProductSchema.validate(req.body);
+
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  try {
+    const existingProduct = db
+      .prepare("SELECT * FROM products WHERE product_id = ?")
+      .get(id);
+    if (!existingProduct)
+      return res.status(404).json({ error: "Product not found." });
+
+    const fields = Object.keys(value)
+      .map((key) => `${key} = ?`)
+      .join(", ");
+
+    const values = Object.values(value);
+
+    if (fields.length > 0) {
+      const stmt = db.prepare(`
+      UPDATE products SET ${fields} WHERE product_id = ?
+      `);
+      stmt.run(...values, id);
+    }
+
+    const updatedProduct = db
+      .prepare("SELECT * FROM products WHERE product_id = ?")
+      .get(id);
+
+    res.json(updatedProduct);
+  } catch (err) {
+    next(err);
   }
 });
 
