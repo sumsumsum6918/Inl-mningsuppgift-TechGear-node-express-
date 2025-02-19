@@ -42,6 +42,37 @@ app.get("/products", (req, res, next) => {
   }
 });
 
+app.get("/products/search", (req, res, next) => {
+  const { name } = req.query;
+  if (!name) return res.status(400).json({ error: "Search term is required" });
+  try {
+    const products = req.db
+      .prepare(
+        `
+      SELECT 
+      p.product_id, 
+      m.name AS manufacturers_name, 
+      p.name, 
+      p.description, 
+      p.price, 
+      p.stock_quantity
+      FROM products p
+      LEFT JOIN manufacturers m
+      ON p.manufacturer_id = m.manufacturer_id     
+      WHERE p.name LIKE ?
+      `
+      )
+      .all(`%${name}%`);
+
+    if (products.length === 0)
+      return res.status(404).json({ message: "No products found" });
+
+    res.json(products);
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/products/:id", (req, res, next) => {
   const { id } = req.params;
 
