@@ -1,5 +1,5 @@
 const express = require("express");
-const { connectDB } = require("./database");
+const db = require("./database");
 
 const app = express();
 
@@ -9,7 +9,7 @@ app.use(express.json());
 
 app.use((req, res, next) => {
   try {
-    req.db = connectDB();
+    req.db = db;
     console.log("Connected to the database!");
     next();
   } catch (err) {
@@ -22,9 +22,17 @@ app.get("/products", (req, res, next) => {
     const products = req.db
       .prepare(
         `
-      SELECT products.product_id, products.name, manufacturers.name AS manufacturers_name
-      FROM products
-      LEFT JOIN manufacturers ON products.manufacturer_id = manufacturers.manufacturer_id    
+      SELECT products.product_id,
+          products.name,
+          manufacturers.name AS manufacturers_name,
+          categories.name AS category_name
+       FROM products
+       LEFT JOIN
+          manufacturers ON products.manufacturer_id = manufacturers.manufacturer_id
+       LEFT JOIN
+         products_categories ON products.product_id = products_categories.product_id
+       LEFT JOIN
+          categories ON categories.category_id = products_categories.category_id;
     `
       )
       .all();
@@ -34,7 +42,30 @@ app.get("/products", (req, res, next) => {
   }
 });
 
-app.get("/categories-products", (req, res, next) => {
+app.get("/products/:id", (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    const product = req.db
+      .prepare(
+        `SELECT 
+          *
+       FROM products
+      WHERE product_id = ?
+    `
+      )
+      .get(id);
+
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    res.json(product);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*app.get("/categories-products", (req, res, next) => {
   try {
     const productsCat = req.db
       .prepare(
@@ -50,7 +81,7 @@ app.get("/categories-products", (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+});*/
 
 app.get("/reviews", (req, res, next) => {
   try {
