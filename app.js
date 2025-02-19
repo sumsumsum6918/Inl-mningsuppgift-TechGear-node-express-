@@ -157,7 +157,7 @@ app.post("/products", (req, res, next) => {
 
     res.status(201).json({ id: result.lastInsertRowid, ...value });
   } catch (err) {
-    next(er);
+    next(err);
   }
 });
 
@@ -192,6 +192,26 @@ app.put("/products/:id", (req, res, next) => {
       .get(id);
 
     res.json(updatedProduct);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete("/products/:id", (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    const existingProduct = req.db
+      .prepare("SELECT * FROM products WHERE product_id = ?")
+      .get(id);
+
+    if (!existingProduct)
+      return res.status(404).json({ error: "Product not found." });
+
+    const stmt = req.db.prepare("DELETE FROM products where product_id = ?");
+    stmt.run(id);
+
+    res.json({ message: "Product and related reviews deleted sucessfully" });
   } catch (err) {
     next(err);
   }
