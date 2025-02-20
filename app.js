@@ -250,7 +250,6 @@ app.get("/customers/:id", (req, res, next) => {
        JOIN orders
        ON orders.customer_id = customers.customer_id
       WHERE customers.customer_id = ?
-      GROUP BY customers.name
     `
       )
       .get(id);
@@ -272,10 +271,7 @@ app.get("/customers/:id/orders", (req, res, next) => {
     const customer = req.db
       .prepare(
         `SELECT 
-          name AS customer_name,
-          email,
-          phone,
-          address
+          name AS customer_name
        FROM customers
       WHERE customer_id = ?
     `
@@ -298,7 +294,7 @@ app.get("/customers/:id/orders", (req, res, next) => {
       ON orders.order_id = orders_products.order_id
       JOIN customers
       ON customers.customer_id = orders.customer_id
-      JOIN products 
+      LEFT JOIN products 
       ON products.product_id = orders_products.product_id
       WHERE orders.customer_id = ?
       `
@@ -307,9 +303,6 @@ app.get("/customers/:id/orders", (req, res, next) => {
 
     res.json({
       customer_id: customer.customer_name,
-      email: customer.email,
-      phone: customer.phone,
-      address: customer.address,
       orders_history: orders.length > 0 ? orders : "No orders found.",
     });
   } catch (err) {
