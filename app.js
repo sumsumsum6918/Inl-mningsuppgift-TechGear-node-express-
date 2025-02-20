@@ -24,6 +24,14 @@ const updateProductSchema = Joi.object({
   stock_quantity: Joi.number().integer().optional(),
 }).min(1);
 
+const updateCustomerSchema = Joi.object({
+  name: Joi.string().optional(),
+  email: Joi.string().email().optional(),
+  phone: Joi.number().integer().optional(),
+  address: Joi.string().optional(),
+  password: Joi.string().optional(),
+}).min(1);
+
 app.use((req, res, next) => {
   try {
     req.db = db;
@@ -273,6 +281,42 @@ app.get("/customers/:id", (req, res, next) => {
       address: customer.address,
       orders_history: orders.length > 0 ? orders : "No orders found.",
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put("/customers/:id", (req, res, next) => {
+  const { id } = req.params;
+  const { error, value } = updateCustomerSchema.validate(req.body);
+
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  try {
+    const existingCustomer = db
+      .prepare("SELECT * FROM customers WHERE customer_id = ?")
+      .get(id);
+    if (!existingCustomer)
+      return res.status(404).json({ error: "Customer not found." });
+
+    const fields = Object.keys(value)
+      .map((key) => `${key} = ?`)
+      .join(", ");
+
+    const values = Object.values(value);
+
+    if (fields.length > 0) {
+      const stmt = db.prepare(`
+      UPDATE customers SET ${fields} WHERE customer_id = ?
+      `);
+      stmt.run(...values, id);
+    }
+
+    const updatedCustomer = db
+      .prepare("SELECT * FROM customers WHERE customer_id = ?")
+      .get(id);
+
+    res.json(updatedCustomer);
   } catch (err) {
     next(err);
   }
