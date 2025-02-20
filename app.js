@@ -244,6 +244,37 @@ app.get("/customers/:id", (req, res, next) => {
           name AS customer_name,
           email,
           phone,
+          address,
+          MAX(orders.order_date) AS Latest_order
+       FROM customers
+       JOIN orders
+       ON orders.customer_id = customers.customer_id
+      WHERE customers.customer_id = ?
+      GROUP BY customers.name
+    `
+      )
+      .get(id);
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    res.json(customer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/customers/:id/orders", (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    const customer = req.db
+      .prepare(
+        `SELECT 
+          name AS customer_name,
+          email,
+          phone,
           address
        FROM customers
       WHERE customer_id = ?
