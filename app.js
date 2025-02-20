@@ -217,6 +217,67 @@ app.delete("/products/:id", (req, res, next) => {
   }
 });
 
+app.get("/customers", (req, res, next) => {
+  try {
+    const customers = req.db.prepare("SELECT * FROM customers").all();
+    res.json(customers);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/customers/:id", (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    const customer = req.db
+      .prepare(
+        `SELECT 
+          name AS customer_name,
+          email,
+          phone,
+          address
+       FROM customers
+      WHERE customer_id = ?
+    `
+      )
+      .get(id);
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    const orders = req.db
+      .prepare(
+        `
+      SELECT orders.order_id, 
+      products.name AS product_name,
+      quantity,
+      order_date
+      FROM orders
+      LEFT JOIN orders_products
+      ON orders.order_id = orders_products.order_id
+      JOIN customers
+      ON customers.customer_id = orders.customer_id
+      JOIN products 
+      ON products.product_id = orders_products.product_id
+      WHERE orders.customer_id = ?
+      `
+      )
+      .all(id);
+
+    res.json({
+      customer_id: customer.customer_name,
+      email: customer.email,
+      phone: customer.phone,
+      address: customer.address,
+      orders_history: orders.length > 0 ? orders : "No orders found.",
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/reviews", (req, res, next) => {
   try {
     const reviews = req.db
@@ -252,15 +313,15 @@ app.get("/orders", (req, res, next) => {
   }
 });
 
-app.use((req, res, next) => {
-  if (req.db) req.db.close();
-  next();
-});
+// app.use((req, res, next) => {
+//   if (req.db) req.db.close();
+//   next();
+// });
 
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: err.messages || "Internal Server Error" });
-});
+// app.use((err, req, res, next) => {
+//   console.error(err);
+//   res.status(500).json({ error: err.messages || "Internal Server Error" });
+// });
 
 app.listen(PORT, () => {
   console.log(`Listening on port ${PORT}`);
