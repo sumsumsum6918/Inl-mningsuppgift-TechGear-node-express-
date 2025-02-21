@@ -388,6 +388,27 @@ app.get("/reviews", (req, res, next) => {
   }
 });
 
+app.get("/reviews/stats", (req, res, next) => {
+  try {
+    const stats = req.db
+      .prepare(
+        `
+      SELECT
+      products.name AS product_name,
+      ROUND(AVG(reviews.rating), 1) AS avg_rating
+      FROM products
+      JOIN reviews 
+      ON reviews.product_id = products.product_id
+      GROUP BY products.product_id
+      `
+      )
+      .all();
+    res.json(stats);
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/orders", (req, res, next) => {
   try {
     const orders = req.db
@@ -405,15 +426,15 @@ app.get("/orders", (req, res, next) => {
   }
 });
 
-// app.use((req, res, next) => {
-//   if (req.db) req.db.close();
-//   next();
-// });
+/*app.use((req, res, next) => {
+  if (req.db) req.db.close();
+  next();
+});
 
-// app.use((err, req, res, next) => {
-//   console.error(err);
-//   res.status(500).json({ error: err.messages || "Internal Server Error" });
-// });
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: err.messages || "Internal Server Error" });
+});*/
 
 app.listen(PORT, () => {
   console.log(`Listening on port ${PORT}`);
