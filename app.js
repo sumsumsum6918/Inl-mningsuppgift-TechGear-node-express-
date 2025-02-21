@@ -121,6 +121,30 @@ app.get("/products/category/:categoryId", (req, res, next) => {
   }
 });
 
+app.get("/products/stats", (req, res, next) => {
+  try {
+    const stats = req.db
+      .prepare(
+        `
+      SELECT
+      categories.name AS category_name,
+      COUNT(products_categories.product_id) AS total_products,
+      ROUND(AVG(products.price), 2) AS avg_price
+      FROM categories
+      LEFT JOIN products_categories 
+      ON categories.category_id = products_categories.category_id
+      LEFT JOIN products
+      ON products.product_id = products_categories.category_id
+      GROUP BY categories.category_id
+      `
+      )
+      .all();
+    res.json(stats);
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/products/:id", (req, res, next) => {
   const { id } = req.params;
 
