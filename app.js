@@ -12,7 +12,7 @@ const productSchema = Joi.object({
   manufacturer_id: Joi.number().integer().required(),
   name: Joi.string().required(),
   description: Joi.string().allow(""),
-  price: Joi.number().required(),
+  price: Joi.number().greater(0).required(),
   stock_quantity: Joi.number().integer().required(),
 });
 
@@ -20,14 +20,14 @@ const updateProductSchema = Joi.object({
   manufacturer_id: Joi.number().integer().optional(),
   name: Joi.string().optional(),
   description: Joi.string().allow("").optional(),
-  price: Joi.number().optional(),
+  price: Joi.number().greater(0).optional(),
   stock_quantity: Joi.number().integer().optional(),
 }).min(1);
 
 const updateCustomerSchema = Joi.object({
   name: Joi.string().optional(),
   email: Joi.string().email().optional(),
-  phone: Joi.number().integer().optional(),
+  phone: Joi.number().integer().greater(0).optional(),
   address: Joi.string().optional(),
   password: Joi.string().optional(),
 }).min(1);
@@ -42,39 +42,88 @@ app.use((req, res, next) => {
   }
 });
 
+//#region products
 app.get("/products", (req, res, next) => {
+  let { minPrice, maxPrice, sort, page = 1, limit = 10 } = req.query;
+  const selectQuery = `SELECT products.product_id,
+      products.name,
+      products.price,
+      manufacturers.name AS manufacturers_name,
+      categories.name AS category_name`;
+
+  const countQuery = `
+  SELECT COUNT(*) AS total
+  `;
+  let query = `
+   FROM products
+   LEFT JOIN
+      manufacturers ON products.manufacturer_id = manufacturers.manufacturer_id
+   LEFT JOIN
+     products_categories ON products.product_id = products_categories.product_id
+   LEFT JOIN
+      categories ON categories.category_id = products_categories.category_id
+   WHERE 1=1
+`;
+  let params = [];
+
+  if (minPrice) {
+    query += "AND products.price >= ?";
+    params.push(minPrice);
+  }
+
+  if (maxPrice) {
+    query += "AND products.price <= ?";
+    params.push(maxPrice);
+  }
+
+  const validSortOptions = {
+    price_asc: "products.price ASC",
+    price_desc: "products.price DESC",
+    name_asc: "products.name ASC",
+    name_desc: "products.name DESC",
+  };
+
+  if (sort && validSortOptions[sort]) {
+    query += `ORDER BY ${validSortOptions[sort]}`;
+  }
+
   try {
-    const products = req.db
-      .prepare(
-        `
-      SELECT products.product_id,
-          products.name,
-          manufacturers.name AS manufacturers_name,
-          categories.name AS category_name
-       FROM products
-       LEFT JOIN
-          manufacturers ON products.manufacturer_id = manufacturers.manufacturer_id
-       LEFT JOIN
-         products_categories ON products.product_id = products_categories.product_id
-       LEFT JOIN
-          categories ON categories.category_id = products_categories.category_id;
-    `
-      )
-      .all();
-    res.json(products);
+    const count = req.db.prepare(countQuery + query).get(...params).total;
+
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    const offset = (page - 1) * limit;
+    query += " LIMIT ? OFFSET ?";
+
+    params.push(limit, offset);
+
+    const products = req.db.prepare(selectQuery + query).all(...params);
+
+    if (products.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No products found within the given criteria." });
+    }
+
+    res.status(200).json({
+      page,
+      limit,
+      totalResults: count,
+      products,
+    });
   } catch (err) {
     next(err);
   }
 });
 
 app.get("/products/search", (req, res, next) => {
-  const { name } = req.query;
-  if (!name) return res.status(400).json({ error: "Search term is required" });
-  try {
-    const products = req.db
-      .prepare(
-        `
-      SELECT 
+  const { name, category } = req.query;
+  if (!name && !category)
+    return res.status(400).json({ error: "Search term is required" });
+
+  let query = `
+   SELECT 
       p.product_id, 
       m.name AS manufacturers_name, 
       p.name, 
@@ -84,15 +133,28 @@ app.get("/products/search", (req, res, next) => {
       FROM products p
       LEFT JOIN manufacturers m
       ON p.manufacturer_id = m.manufacturer_id     
-      WHERE p.name LIKE ?
-      `
-      )
-      .all(`%${name}%`);
+      WHERE 1=1
+  `;
+  let params = [];
+
+  if (name) {
+    query += " AND p.name LIKE ?";
+    params.push(`%${name}%`);
+  }
+
+  if (category) {
+    query +=
+      " AND p.product_id IN (SELECT product_id FROM products_categories pc JOIN categories c ON pc.category_id = c.category_id WHERE c.name LIKE ?)";
+    params.push(`%${category}%`);
+  }
+
+  try {
+    const products = req.db.prepare(query).all(...params);
 
     if (products.length === 0)
       return res.status(404).json({ message: "No products found" });
 
-    res.json(products);
+    res.status(200).json(products);
   } catch (err) {
     next(err);
   }
@@ -115,7 +177,8 @@ app.get("/products/category/:categoryId", (req, res, next) => {
       `
       )
       .all(categoryId);
-    res.json(products);
+
+    res.status(200).json(products);
   } catch (error) {
     next(error);
   }
@@ -162,7 +225,7 @@ app.get("/products/:id", (req, res, next) => {
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
-    res.json(product);
+    res.status(200).json(product);
   } catch (err) {
     next(err);
   }
@@ -248,7 +311,9 @@ app.delete("/products/:id", (req, res, next) => {
     next(err);
   }
 });
+//#endregion
 
+//#region customers
 app.get("/customers", (req, res, next) => {
   try {
     const customers = req.db.prepare("SELECT * FROM customers").all();
@@ -369,6 +434,7 @@ app.put("/customers/:id", (req, res, next) => {
     next(err);
   }
 });
+//#endregion
 
 app.get("/reviews", (req, res, next) => {
   try {
@@ -429,12 +495,12 @@ app.get("/orders", (req, res, next) => {
 /*app.use((req, res, next) => {
   if (req.db) req.db.close();
   next();
-});
+});*/
 
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: err.messages || "Internal Server Error" });
-});*/
+});
 
 app.listen(PORT, () => {
   console.log(`Listening on port ${PORT}`);
