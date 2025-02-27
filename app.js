@@ -105,6 +105,12 @@ app.get("/products", (req, res, next) => {
     name_desc: "products.name DESC",
   };
 
+  if (sort && !validSortOptions[sort]) {
+    return res
+      .status(404)
+      .json({ message: "No products found within the given criteria." });
+  }
+
   if (sort && validSortOptions[sort]) {
     query += `ORDER BY ${validSortOptions[sort]}`;
   }
