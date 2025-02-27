@@ -60,6 +60,10 @@ app.use((req, res, next) => {
   }
 });
 
+app.get("/error", (req, res, next) => {
+  throw new Error("Test error");
+});
+
 //#region products
 app.get("/products", (req, res, next) => {
   let { minPrice, maxPrice, sort, page = 1, limit = 10 } = req.query;
@@ -507,7 +511,7 @@ app.get("/orders", (req, res, next) => {
 });*/
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error(err.stack);
   res.status(500).json({ error: err.messages || "Internal Server Error" });
 });
 
