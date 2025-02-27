@@ -8,6 +8,24 @@ const PORT = 3000;
 
 app.use(express.json());
 
+const logger = (req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+};
+
+app.use(logger);
+
+const validate = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.body, { abortEarly: false });
+
+  if (error) {
+    return res.status(400).json({ errors: error.details[0].message });
+  }
+
+  req.validatedValue = value;
+  next();
+};
+
 const productSchema = Joi.object({
   manufacturer_id: Joi.number().integer().required(),
   name: Joi.string().required(),
@@ -231,36 +249,30 @@ app.get("/products/:id", (req, res, next) => {
   }
 });
 
-app.post("/products", (req, res, next) => {
-  const { error, value } = productSchema.validate(req.body);
-
-  if (error) return res.status(400).json({ error: error.details[0].message });
-
+app.post("/products", validate(productSchema), (req, res, next) => {
   try {
     const stmt = db.prepare(`
       INSERT INTO products (manufacturer_id, name, description, price, stock_quantity)
       VALUES (?, ?, ?, ?, ?)
       `);
+    const values = req.validatedValue;
 
     const result = stmt.run(
-      value.manufacturer_id,
-      value.name,
-      value.description,
-      value.price,
-      value.stock_quantity
+      values.manufacturer_id,
+      values.name,
+      values.description,
+      values.price,
+      values.stock_quantity
     );
 
-    res.status(201).json({ id: result.lastInsertRowid, ...value });
+    res.status(201).json({ id: result.lastInsertRowid, ...values });
   } catch (err) {
     next(err);
   }
 });
 
-app.put("/products/:id", (req, res, next) => {
+app.put("/products/:id", validate(updateProductSchema), (req, res, next) => {
   const { id } = req.params;
-  const { error, value } = updateProductSchema.validate(req.body);
-
-  if (error) return res.status(400).json({ error: error.details[0].message });
 
   try {
     const existingProduct = db
@@ -269,11 +281,11 @@ app.put("/products/:id", (req, res, next) => {
     if (!existingProduct)
       return res.status(404).json({ error: "Product not found." });
 
-    const fields = Object.keys(value)
+    const fields = Object.keys(req.validatedValue)
       .map((key) => `${key} = ?`)
       .join(", ");
 
-    const values = Object.values(value);
+    const values = Object.values(req.validatedValue);
 
     if (fields.length > 0) {
       const stmt = db.prepare(`
@@ -399,11 +411,8 @@ app.get("/customers/:id/orders", (req, res, next) => {
   }
 });
 
-app.put("/customers/:id", (req, res, next) => {
+app.put("/customers/:id", validate(updateCustomerSchema), (req, res, next) => {
   const { id } = req.params;
-  const { error, value } = updateCustomerSchema.validate(req.body);
-
-  if (error) return res.status(400).json({ error: error.details[0].message });
 
   try {
     const existingCustomer = db
@@ -412,11 +421,11 @@ app.put("/customers/:id", (req, res, next) => {
     if (!existingCustomer)
       return res.status(404).json({ error: "Customer not found." });
 
-    const fields = Object.keys(value)
+    const fields = Object.keys(req.validatedValue)
       .map((key) => `${key} = ?`)
       .join(", ");
 
-    const values = Object.values(value);
+    const values = Object.values(req.validatedValue);
 
     if (fields.length > 0) {
       const stmt = db.prepare(`
