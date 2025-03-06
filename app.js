@@ -194,10 +194,25 @@ app.get("/products/category/:categoryId", (req, res, next) => {
     return res.status(400).json({ error: "Category ID is required" });
 
   try {
+    const category = req.db
+      .prepare(
+        `
+      SELECT  name 
+      FROM categories
+      WHERE category_id = ?
+      `
+      )
+      .get(categoryId);
+
     const products = req.db
       .prepare(
         `
-      SELECT categories.name AS category_name,  products.name AS product_name
+      SELECT  products.product_id,
+              manufacturer_id,
+              products.name,
+              description,
+              price,
+              stock_quantity
       FROM products
       JOIN products_categories ON products.product_id = products_categories.product_id
       JOIN categories ON categories.category_id = products_categories.category_id
@@ -206,7 +221,7 @@ app.get("/products/category/:categoryId", (req, res, next) => {
       )
       .all(categoryId);
 
-    res.status(200).json(products);
+    res.status(200).json({ category, products });
   } catch (error) {
     next(error);
   }
@@ -352,7 +367,7 @@ app.get("/customers/:id", (req, res, next) => {
     const customer = req.db
       .prepare(
         `SELECT 
-          name AS customer_name,
+          name,
           email,
           phone,
           address,
@@ -381,8 +396,7 @@ app.get("/customers/:id/orders", (req, res, next) => {
   try {
     const customer = req.db
       .prepare(
-        `SELECT 
-          name AS customer_name
+        `SELECT name
        FROM customers
       WHERE customer_id = ?
     `
@@ -412,10 +426,7 @@ app.get("/customers/:id/orders", (req, res, next) => {
       )
       .all(id);
 
-    res.json({
-      customer_id: customer.customer_name,
-      orders_history: orders.length > 0 ? orders : "No orders found.",
-    });
+    res.json(orders);
   } catch (err) {
     next(err);
   }
@@ -511,14 +522,9 @@ app.get("/orders", (req, res, next) => {
   }
 });
 
-/*app.use((req, res, next) => {
-  if (req.db) req.db.close();
-  next();
-});*/
-
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ error: err.messages || "Internal Server Error" });
+  res.status(500).json({ error: err.message || "Internal Server Error" });
 });
 
 app.listen(PORT, () => {
